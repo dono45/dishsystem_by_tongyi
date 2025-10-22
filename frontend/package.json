@@ -1,0 +1,22 @@
+{
+  "name": "food-delivery-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint"
+  },
+  "dependencies": {
+    "axios": "^0.24.0",
+    "bootstrap": "^5.3.8",
+    "bootstrap-icons": "^1.13.1",
+    "bootstrap-vue-3": "^0.1.5",
+    "vue": "^3.2.0",
+    "vue-router": "^4.0.0"
+  },
+  "devDependencies": {
+    "@vue/cli-service": "~5.0.0",
+    "@vue/compiler-sfc": "^3.2.0"
+  }
+}
