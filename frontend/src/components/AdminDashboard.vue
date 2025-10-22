@@ -7,6 +7,9 @@
         <a class="nav-link" :class="{ active: activeTab === 'dishes' }" @click="activeTab = 'dishes'" href="#">菜品管理</a>
       </li>
       <li class="nav-item">
+        <a class="nav-link" :class="{ active: activeTab === 'categories' }" @click="activeTab = 'categories'" href="#">分类管理</a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" :class="{ active: activeTab === 'orders' }" @click="activeTab = 'orders'" href="#">订单管理</a>
       </li>
       <li class="nav-item">
@@ -34,6 +37,9 @@
               <p class="card-text">
                 <strong>¥{{ dish.price.toFixed(2) }}</strong>
               </p>
+              <p class="card-text" v-if="dish.category">
+                <small class="text-muted">分类: {{ dish.category.name }}</small>
+              </p>
               <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                 <button class="btn btn-sm btn-outline-primary" @click="editDish(dish)">编辑</button>
                 <button class="btn btn-sm btn-outline-danger" @click="deleteDish(dish.id)">删除</button>
@@ -41,6 +47,40 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+    
+    <!-- 分类管理 -->
+    <div v-if="activeTab === 'categories'">
+      <div class="d-flex justify-content-between mb-3">
+        <h4>分类列表</h4>
+        <button class="btn btn-primary" @click="showAddCategoryModal">添加分类</button>
+      </div>
+      
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>名称</th>
+              <th>描述</th>
+              <th>菜品数量</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="category in categories" :key="category.id">
+              <td>{{ category.id }}</td>
+              <td>{{ category.name }}</td>
+              <td>{{ category.description }}</td>
+              <td>{{ getCategoryDishCount(category.id) }}</td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary me-2" @click="editCategory(category)">编辑</button>
+                <button class="btn btn-sm btn-outline-danger" @click="deleteCategory(category.id)" :disabled="getCategoryDishCount(category.id) > 0">删除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
     
@@ -133,6 +173,15 @@
                 <input type="number" class="form-control" v-model="dishForm.price" step="0.01" required>
               </div>
               <div class="mb-3">
+                <label class="form-label">分类</label>
+                <select class="form-select" v-model="dishForm.category_id">
+                  <option value="">无分类</option>
+                  <option v-for="category in categories" :key="category.id" :value="category.id">
+                    {{ category.name }}
+                  </option>
+                </select>
+              </div>
+              <div class="mb-3">
                 <label class="form-label">图片URL</label>
                 <input type="text" class="form-control" v-model="dishForm.image_url">
               </div>
@@ -141,6 +190,34 @@
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
             <button type="button" class="btn btn-primary" @click="saveDish">{{ editingDish ? '更新' : '添加' }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 添加/编辑分类模态框 -->
+    <div class="modal fade" id="categoryModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">{{ editingCategory ? '编辑分类' : '添加分类' }}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form>
+              <div class="mb-3">
+                <label class="form-label">分类名称</label>
+                <input type="text" class="form-control" v-model="categoryForm.name" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">描述</label>
+                <textarea class="form-control" v-model="categoryForm.description" rows="3"></textarea>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-primary" @click="saveCategory">{{ editingCategory ? '更新' : '添加' }}</button>
           </div>
         </div>
       </div>
@@ -157,14 +234,21 @@ export default {
     return {
       activeTab: 'dishes',
       dishes: [],
+      categories: [],
       orders: [],
       dishForm: {
         name: '',
         description: '',
         price: 0,
-        image_url: ''
+        image_url: '',
+        category_id: null
       },
-      editingDish: null
+      categoryForm: {
+        name: '',
+        description: ''
+      },
+      editingDish: null,
+      editingCategory: null
     }
   },
   
@@ -183,6 +267,7 @@ export default {
     }
     
     await this.loadDishes()
+    await this.loadCategories()
     await this.loadOrders()
   },
   
@@ -197,6 +282,19 @@ export default {
         this.dishes = response.data
       } catch (error) {
         this.$root.showMessage('加载菜品失败：' + (error.response?.data?.message || '未知错误'))
+      }
+    },
+    
+    async loadCategories() {
+      try {
+        const response = await axios.get('/api/admin/categories', {
+          headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('token')
+          }
+        })
+        this.categories = response.data
+      } catch (error) {
+        this.$root.showMessage('加载分类失败：' + (error.response?.data?.message || '未知错误'))
       }
     },
     
@@ -219,7 +317,8 @@ export default {
         name: '',
         description: '',
         price: 0,
-        image_url: ''
+        image_url: '',
+        category_id: null
       }
       
       // 修复：显式导入Bootstrap模块
@@ -233,7 +332,13 @@ export default {
     
     editDish(dish) {
       this.editingDish = dish
-      this.dishForm = { ...dish }
+      this.dishForm = { 
+        name: dish.name,
+        description: dish.description,
+        price: dish.price,
+        image_url: dish.image_url,
+        category_id: dish.category ? dish.category.id : null
+      }
       
       // 修复：显式导入Bootstrap模块
       import('bootstrap/dist/js/bootstrap.esm.js').then((bootstrap) => {
@@ -306,6 +411,99 @@ export default {
       }
     },
     
+    showAddCategoryModal() {
+      this.editingCategory = null
+      this.categoryForm = {
+        name: '',
+        description: ''
+      }
+      
+      // 显示分类模态框
+      import('bootstrap/dist/js/bootstrap.esm.js').then((bootstrap) => {
+        const modal = new bootstrap.Modal(document.getElementById('categoryModal'))
+        modal.show()
+      }).catch((error) => {
+        console.error('Failed to load Bootstrap:', error)
+      })
+    },
+    
+    editCategory(category) {
+      this.editingCategory = category
+      this.categoryForm = { 
+        name: category.name,
+        description: category.description
+      }
+      
+      // 显示分类模态框
+      import('bootstrap/dist/js/bootstrap.esm.js').then((bootstrap) => {
+        const modal = new bootstrap.Modal(document.getElementById('categoryModal'))
+        modal.show()
+      }).catch((error) => {
+        console.error('Failed to load Bootstrap:', error)
+      })
+    },
+    
+    async saveCategory() {
+      try {
+        if (this.editingCategory) {
+          // 更新分类
+          await axios.put(`/api/admin/categories/${this.editingCategory.id}`, this.categoryForm, {
+            headers: {
+              'Authorization': 'Bearer ' + localStorage.getItem('token')
+            }
+          })
+          this.$root.showMessage('分类更新成功')
+        } else {
+          // 添加分类
+          await axios.post('/api/admin/categories', this.categoryForm, {
+            headers: {
+              'Authorization': 'Bearer ' + localStorage.getItem('token')
+            }
+          })
+          this.$root.showMessage('分类添加成功')
+        }
+        
+        // 关闭模态框
+        import('bootstrap/dist/js/bootstrap.esm.js').then((bootstrap) => {
+          const modalEl = document.getElementById('categoryModal')
+          const modal = bootstrap.Modal.getInstance(modalEl)
+          modal.hide()
+        }).catch((error) => {
+          console.error('Failed to load Bootstrap:', error)
+          // 如果无法加载Bootstrap，手动隐藏模态框
+          const modalEl = document.getElementById('categoryModal')
+          if (modalEl) {
+            modalEl.style.display = 'none'
+            document.body.classList.remove('modal-open')
+          }
+        })
+        
+        // 重新加载分类列表
+        await this.loadCategories()
+      } catch (error) {
+        this.$root.showMessage('操作失败：' + (error.response?.data?.message || '未知错误'))
+      }
+    },
+    
+    async deleteCategory(categoryId) {
+      if (!confirm('确定要删除这个分类吗？')) {
+        return
+      }
+      
+      try {
+        await axios.delete(`/api/admin/categories/${categoryId}`, {
+          headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('token')
+          }
+        })
+        
+        this.$root.showMessage('分类删除成功')
+        await this.loadCategories()
+      } catch (error) {
+        this.$root.showMessage('删除失败：' + (error.response?.data?.message || '未知错误'))
+      }
+    },
+    
     async updateOrderStatus(orderId, status) {
       try {
         await axios.put(`/api/admin/orders/${orderId}/status`, { status }, {
@@ -324,6 +522,10 @@ export default {
     formatDate(dateString) {
       const date = new Date(dateString)
       return date.toLocaleString('zh-CN')
+    },
+    
+    getCategoryDishCount(categoryId) {
+      return this.dishes.filter(dish => dish.category && dish.category.id === categoryId).length
     }
   }
 }

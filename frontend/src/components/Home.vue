@@ -22,29 +22,9 @@
               <input class="form-check-input" type="radio" name="category" id="allCategories" value="" v-model="selectedCategory" checked>
               <label class="form-check-label" for="allCategories">所有商品</label>
             </div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="radio" name="category" id="chinese" value="中式" v-model="selectedCategory">
-              <label class="form-check-label" for="chinese">中式菜肴</label>
-            </div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="radio" name="category" id="western" value="西式" v-model="selectedCategory">
-              <label class="form-check-label" for="western">西式料理</label>
-            </div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="radio" name="category" id="soup" value="汤类" v-model="selectedCategory">
-              <label class="form-check-label" for="soup">汤类</label>
-            </div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="radio" name="category" id="drink" value="饮品" v-model="selectedCategory">
-              <label class="form-check-label" for="drink">饮品</label>
-            </div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="radio" name="category" id="dessert" value="甜点" v-model="selectedCategory">
-              <label class="form-check-label" for="dessert">甜点</label>
-            </div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="radio" name="category" id="snack" value="小吃" v-model="selectedCategory">
-              <label class="form-check-label" for="snack">小吃</label>
+            <div class="form-check mb-2" v-for="category in allCategories" :key="category.id">
+              <input class="form-check-input" type="radio" name="category" :id="'cat_' + category.id" :value="category.name" v-model="selectedCategory">
+              <label class="form-check-label" :for="'cat_' + category.id">{{ category.name }}</label>
             </div>
           </div>
         </div>
@@ -78,12 +58,7 @@
               <div class="col-12">
                 <select class="form-select" v-model="selectedCategory">
                   <option value="">所有商品</option>
-                  <option value="中式">中式菜肴</option>
-                  <option value="西式">西式料理</option>
-                  <option value="汤类">汤类</option>
-                  <option value="饮品">饮品</option>
-                  <option value="甜点">甜点</option>
-                  <option value="小吃">小吃</option>
+                  <option v-for="category in allCategories" :key="category.id" :value="category.name">{{ category.name }}</option>
                 </select>
               </div>
             </div>
@@ -133,7 +108,7 @@
                   <div class="d-flex justify-content-between align-items-center">
                     <div>
                       <label for="pageSize" class="me-2">每页显示:</label>
-                      <select id="pageSize" class="form-select d-inline-block w-auto" v-model="pageSize">
+                      <select id="pageSize" class="form-select d-inline-block w-auto" :value="pageSize" @change="onPageSizeChange">
                         <option value="5">5</option>
                         <option value="10">10</option>
                         <option value="20">20</option>
@@ -363,14 +338,14 @@ export default {
         result = result.filter(dish => 
           dish.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
           dish.description.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-          (dish.category && dish.category.toLowerCase().includes(this.searchTerm.toLowerCase()))
+          (dish.category && dish.category.name.toLowerCase().includes(this.searchTerm.toLowerCase()))
         )
       }
       
       // 分类筛选
       if (this.selectedCategory) {
         result = result.filter(dish => 
-          dish.category && dish.category === this.selectedCategory
+          dish.category && dish.category.name === this.selectedCategory
         )
       }
       
@@ -396,6 +371,17 @@ export default {
       return result
     },
     
+    // 计算所有分类
+    allCategories() {
+      const categories = []
+      this.dishes.forEach(dish => {
+        if (dish.category && !categories.find(cat => cat.name === dish.category.name)) {
+          categories.push(dish.category)
+        }
+      })
+      return categories
+    },
+    
     // 计算总页数
     totalPages() {
       return Math.ceil(this.filteredDishes.length / this.pageSize)
@@ -403,9 +389,18 @@ export default {
     
     // 计算当前页要显示的菜品
     paginatedDishes() {
-      const startIndex = (this.currentPage - 1) * this.pageSize
-      const endIndex = startIndex + this.pageSize
-      return this.filteredDishes.slice(startIndex, endIndex)
+      // 确保当前页不会超出范围
+      if (this.currentPage > this.totalPages && this.totalPages > 0) {
+        this.currentPage = this.totalPages;
+      } else if (this.currentPage < 1) {
+        this.currentPage = 1;
+      }
+      
+      const startIndex = (this.currentPage - 1) * this.pageSize;
+      const endIndex = startIndex + this.pageSize;
+      
+      // 确保不会超出数组范围
+      return this.filteredDishes.slice(startIndex, Math.min(endIndex, this.filteredDishes.length));
     },
     
     // 计算可见的页码（最多显示5个页码）
@@ -433,9 +428,13 @@ export default {
       this.currentPage = 1
     },
     
-    // 当页面大小改变时，重置到第一页
-    pageSize() {
-      this.currentPage = 1
+    // 监听总页数变化，确保当前页不会超出范围
+    totalPages(newVal) {
+      if (this.currentPage > newVal && newVal > 0) {
+        this.currentPage = newVal
+      } else if (newVal === 0) {
+        this.currentPage = 1
+      }
     }
   },
   
@@ -463,7 +462,7 @@ export default {
           name: '宫保鸡丁',
           description: '经典川菜，鸡肉丁与花生米炒制，酸甜微辣',
           price: 28.8,
-          category: '中式',
+          category: {id: 1, name: '川菜'},
           rating: 4.5,
           reviewCount: 24,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/53/kung-pao-chicken-1768536_1280.jpg'
@@ -473,7 +472,7 @@ export default {
           name: '麻婆豆腐',
           description: '嫩滑豆腐配以麻辣肉糜，口感丰富',
           price: 22.5,
-          category: '中式',
+          category: {id: 1, name: '川菜'},
           rating: 4.3,
           reviewCount: 18,
           image_url: 'https://cdn.pixabay.com/photo/2017/08/18/17/16/mapo-tofu-2655484_1280.jpg'
@@ -483,7 +482,7 @@ export default {
           name: '红烧肉',
           description: '精选五花肉，慢火炖煮，肥而不腻',
           price: 35.0,
-          category: '中式',
+          category: {id: 2, name: '粤菜'},
           rating: 4.8,
           reviewCount: 32,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/35/braised-pork-1768568_1280.jpg'
@@ -493,7 +492,7 @@ export default {
           name: '鱼香肉丝',
           description: '猪肉丝配木耳胡萝卜，鱼香味浓',
           price: 26.8,
-          category: '中式',
+          category: {id: 1, name: '川菜'},
           rating: 4.2,
           reviewCount: 15,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/36/yuxiang-shredded-pork-1768569_1280.jpg'
@@ -503,7 +502,7 @@ export default {
           name: '糖醋里脊',
           description: '外酥内嫩的猪里脊，酸甜可口',
           price: 32.0,
-          category: '中式',
+          category: {id: 3, name: '鲁菜'},
           rating: 4.6,
           reviewCount: 21,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/37/sweet-and-sour-pork-1768570_1280.jpg'
@@ -513,7 +512,7 @@ export default {
           name: '水煮鱼',
           description: '鲜嫩鱼片配豆芽菜，麻辣鲜香',
           price: 45.0,
-          category: '中式',
+          category: {id: 1, name: '川菜'},
           rating: 4.7,
           reviewCount: 28,
           image_url: 'https://cdn.pixabay.com/photo/2016/11/24/10/01/fish-1854444_1280.jpg'
@@ -523,7 +522,7 @@ export default {
           name: '意大利面',
           description: '经典意式面条，配以番茄酱和新鲜罗勒',
           price: 38.5,
-          category: '西式',
+          category: {id: 4, name: '西式'},
           rating: 4.4,
           reviewCount: 19,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/38/pasta-1768582_1280.jpg'
@@ -533,7 +532,7 @@ export default {
           name: '牛排',
           description: '优质牛肉，煎至完美，配以黑椒汁',
           price: 68.0,
-          category: '西式',
+          category: {id: 4, name: '西式'},
           rating: 4.9,
           reviewCount: 35,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/40/steak-1768599_1280.jpg'
@@ -543,7 +542,7 @@ export default {
           name: '奶油蘑菇汤',
           description: '浓郁奶油汤底，配以新鲜蘑菇',
           price: 18.0,
-          category: '汤类',
+          category: {id: 5, name: '汤类'},
           rating: 4.1,
           reviewCount: 14,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/41/mushroom-soup-1768593_1280.jpg'
@@ -553,7 +552,7 @@ export default {
           name: '番茄蛋花汤',
           description: '新鲜番茄配鸡蛋，酸甜开胃',
           price: 15.5,
-          category: '汤类',
+          category: {id: 5, name: '汤类'},
           rating: 4.0,
           reviewCount: 12,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/42/tomato-soup-1768596_1280.jpg'
@@ -563,7 +562,7 @@ export default {
           name: '柠檬汽水',
           description: '新鲜柠檬制作，清凉解渴',
           price: 12.0,
-          category: '饮品',
+          category: {id: 6, name: '饮品'},
           rating: 4.2,
           reviewCount: 16,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/43/lemonade-1768603_1280.jpg'
@@ -573,7 +572,7 @@ export default {
           name: '拿铁咖啡',
           description: '意式浓缩咖啡配以丝滑牛奶',
           price: 22.0,
-          category: '饮品',
+          category: {id: 6, name: '饮品'},
           rating: 4.5,
           reviewCount: 22,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/44/latte-1768607_1280.jpg'
@@ -583,7 +582,7 @@ export default {
           name: '提拉米苏',
           description: '经典意式甜点，咖啡与奶油的完美结合',
           price: 26.5,
-          category: '甜点',
+          category: {id: 7, name: '甜点'},
           rating: 4.8,
           reviewCount: 27,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/45/tiramisu-1768612_1280.jpg'
@@ -593,7 +592,7 @@ export default {
           name: '芒果布丁',
           description: '新鲜芒果制作，口感细腻',
           price: 18.8,
-          category: '甜点',
+          category: {id: 7, name: '甜点'},
           rating: 4.3,
           reviewCount: 15,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/46/mango-pudding-1768615_1280.jpg'
@@ -603,7 +602,7 @@ export default {
           name: '炸鸡翅',
           description: '香脆外皮，鲜嫩多汁',
           price: 29.9,
-          category: '小吃',
+          category: {id: 8, name: '小吃'},
           rating: 4.4,
           reviewCount: 20,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/47/fried-chicken-wings-1768620_1280.jpg'
@@ -613,7 +612,7 @@ export default {
           name: '春卷',
           description: '酥脆外皮，配以新鲜蔬菜',
           price: 16.5,
-          category: '小吃',
+          category: {id: 8, name: '小吃'},
           rating: 4.0,
           reviewCount: 11,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/48/spring-rolls-1768623_1280.jpg'
@@ -623,7 +622,7 @@ export default {
           name: '扬州炒饭',
           description: '经典中式炒饭，配以虾仁、火腿、鸡蛋',
           price: 24.0,
-          category: '中式',
+          category: {id: 2, name: '粤菜'},
           rating: 4.3,
           reviewCount: 17,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/50/fried-rice-1768550_1280.jpg'
@@ -633,7 +632,7 @@ export default {
           name: '海鲜披萨',
           description: '薄脆饼底，配以新鲜海鲜和芝士',
           price: 52.0,
-          category: '西式',
+          category: {id: 4, name: '西式'},
           rating: 4.6,
           reviewCount: 23,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/52/pizza-1768557_1280.jpg'
@@ -643,7 +642,7 @@ export default {
           name: '紫菜蛋花汤',
           description: '清淡营养，紫菜配鸡蛋花',
           price: 13.5,
-          category: '汤类',
+          category: {id: 5, name: '汤类'},
           rating: 3.9,
           reviewCount: 9,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/42/tomato-soup-1768596_1280.jpg'
@@ -653,7 +652,7 @@ export default {
           name: '芝士蛋糕',
           description: '浓郁芝士口感，丝滑细腻',
           price: 28.0,
-          category: '甜点',
+          category: {id: 7, name: '甜点'},
           rating: 4.7,
           reviewCount: 19,
           image_url: 'https://cdn.pixabay.com/photo/2016/10/25/12/51/cheesecake-1768554_1280.jpg'
@@ -786,11 +785,26 @@ export default {
       this.$root.showMessage('客服电话: 400-123-4567')
     },
     
+    // 页面大小更改处理
+    onPageSizeChange(event) {
+      this.pageSize = parseInt(event.target.value);
+      this.currentPage = 1;
+    },
+    
     // 分页相关方法
     changePage(page) {
+      // 添加边界检查
       if (page >= 1 && page <= this.totalPages) {
         this.currentPage = page
         // 滚动到菜品区域顶部
+        document.getElementById('menu-section').scrollIntoView({ behavior: 'smooth' })
+      } else if (this.totalPages > 0 && page > this.totalPages) {
+        // 如果页面超出范围，转到最后一页面
+        this.currentPage = this.totalPages
+        document.getElementById('menu-section').scrollIntoView({ behavior: 'smooth' })
+      } else if (page < 1) {
+        // 如果页面小于1，转到第一页
+        this.currentPage = 1
         document.getElementById('menu-section').scrollIntoView({ behavior: 'smooth' })
       }
     }

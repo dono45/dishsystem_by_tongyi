@@ -1,7 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity, get_jwt
 from flask_cors import CORS
-from models import db, User, Dish, CartItem, Order, OrderItem, Review
+from models import db, User, Dish, CartItem, Order, OrderItem, Review, Category
+from models import init_default_data  # 导入初始化数据函数
 from functools import wraps
 
 app = Flask(__name__)
@@ -61,49 +62,8 @@ def create_tables():
             admin_user.set_password('admin123')
             db.session.add(admin_user)
         
-        # 添加一些示例菜品数据
-        if Dish.query.count() == 0:
-            dishes = [
-                Dish(
-                    name='宫保鸡丁',
-                    description='经典川菜，鸡肉丁与花生米炒制，酸甜微辣',
-                    price=28.8,
-                    image_url='https://cdn.pixabay.com/photo/2016/10/25/12/53/kung-pao-chicken-1768536_1280.jpg'
-                ),
-                Dish(
-                    name='麻婆豆腐',
-                    description='嫩滑豆腐配以麻辣肉糜，口感丰富',
-                    price=22.5,
-                    image_url='https://cdn.pixabay.com/photo/2017/08/18/17/16/mapo-tofu-2655484_1280.jpg'
-                ),
-                Dish(
-                    name='红烧肉',
-                    description='精选五花肉，慢火炖煮，肥而不腻',
-                    price=35.0,
-                    image_url='https://cdn.pixabay.com/photo/2016/10/25/12/35/braised-pork-1768568_1280.jpg'
-                ),
-                Dish(
-                    name='鱼香肉丝',
-                    description='猪肉丝配木耳胡萝卜，鱼香味浓',
-                    price=26.8,
-                    image_url='https://cdn.pixabay.com/photo/2016/10/25/12/36/yuxiang-shredded-pork-1768569_1280.jpg'
-                ),
-                Dish(
-                    name='糖醋里脊',
-                    description='外酥内嫩的猪里脊，酸甜可口',
-                    price=32.0,
-                    image_url='https://cdn.pixabay.com/photo/2016/10/25/12/37/sweet-and-sour-pork-1768570_1280.jpg'
-                ),
-                Dish(
-                    name='水煮鱼',
-                    description='鲜嫩鱼片配豆芽菜，麻辣鲜香',
-                    price=45.0,
-                    image_url='https://cdn.pixabay.com/photo/2016/11/24/10/01/fish-1854444_1280.jpg'
-                )
-            ]
-            
-            for dish in dishes:
-                db.session.add(dish)
+        # 初始化分类数据
+        init_default_data()
         
         db.session.commit()
 
@@ -188,7 +148,7 @@ def get_dishes():
             average_rating = 5.0  # 默认评分
             review_count = 0
             
-        dish_list.append({
+        dish_data = {
             'id': dish.id,
             'name': dish.name,
             'description': dish.description,
@@ -196,7 +156,16 @@ def get_dishes():
             'image_url': dish.image_url,
             'rating': round(average_rating, 1),
             'reviewCount': review_count
-        })
+        }
+        
+        # 添加分类信息
+        if dish.category:
+            dish_data['category'] = {
+                'id': dish.category.id,
+                'name': dish.category.name
+            }
+        
+        dish_list.append(dish_data)
     
     return jsonify(dish_list), 200
 
@@ -486,16 +455,26 @@ def admin_create_dish():
     description = data.get('description')
     price = data.get('price')
     image_url = data.get('image_url')
+    category_id = data.get('category_id')
     
     dish = Dish(
         name=name,
         description=description,
         price=price,
-        image_url=image_url
+        image_url=image_url,
+        category_id=category_id
     )
     
     db.session.add(dish)
     db.session.commit()
+    
+    # 获取分类信息
+    category_info = None
+    if dish.category:
+        category_info = {
+            'id': dish.category.id,
+            'name': dish.category.name
+        }
     
     return jsonify({
         'message': 'Dish created successfully',
@@ -504,7 +483,8 @@ def admin_create_dish():
             'name': dish.name,
             'description': dish.description,
             'price': dish.price,
-            'image_url': dish.image_url
+            'image_url': dish.image_url,
+            'category': category_info
         }
     }), 201
 
@@ -519,8 +499,17 @@ def admin_update_dish(dish_id):
     dish.description = data.get('description', dish.description)
     dish.price = data.get('price', dish.price)
     dish.image_url = data.get('image_url', dish.image_url)
+    dish.category_id = data.get('category_id', dish.category_id)
     
     db.session.commit()
+    
+    # 获取分类信息
+    category_info = None
+    if dish.category:
+        category_info = {
+            'id': dish.category.id,
+            'name': dish.category.name
+        }
     
     return jsonify({
         'message': 'Dish updated successfully',
@@ -529,7 +518,8 @@ def admin_update_dish(dish_id):
             'name': dish.name,
             'description': dish.description,
             'price': dish.price,
-            'image_url': dish.image_url
+            'image_url': dish.image_url,
+            'category': category_info
         }
     }), 200
 
@@ -590,6 +580,85 @@ def admin_update_order_status(order_id):
         return jsonify({'message': 'Order status updated successfully'}), 200
     else:
         return jsonify({'message': 'Invalid status'}), 400
+
+# 管理员：获取所有菜品分类
+@app.route('/api/admin/categories', methods=['GET'])
+@admin_required
+def admin_get_categories():
+    categories = Category.query.all()
+    return jsonify([{
+        'id': category.id,
+        'name': category.name,
+        'description': category.description
+    } for category in categories]), 200
+
+# 管理员：创建菜品分类
+@app.route('/api/admin/categories', methods=['POST'])
+@admin_required
+def admin_create_category():
+    data = request.get_json()
+    name = data.get('name')
+    description = data.get('description', '')
+    
+    # 检查分类是否已存在
+    if Category.query.filter_by(name=name).first():
+        return jsonify({'message': '分类名称已存在'}), 400
+    
+    category = Category(name=name, description=description)
+    db.session.add(category)
+    db.session.commit()
+    
+    return jsonify({
+        'message': '分类创建成功',
+        'category': {
+            'id': category.id,
+            'name': category.name,
+            'description': category.description
+        }
+    }), 201
+
+# 管理员：更新菜品分类
+@app.route('/api/admin/categories/<int:category_id>', methods=['PUT'])
+@admin_required
+def admin_update_category(category_id):
+    category = Category.query.get_or_404(category_id)
+    data = request.get_json()
+    
+    # 检查分类名称是否已存在（排除自己）
+    name = data.get('name')
+    if name and name != category.name:
+        if Category.query.filter_by(name=name).first():
+            return jsonify({'message': '分类名称已存在'}), 400
+    
+    category.name = data.get('name', category.name)
+    category.description = data.get('description', category.description)
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': '分类更新成功',
+        'category': {
+            'id': category.id,
+            'name': category.name,
+            'description': category.description
+        }
+    }), 200
+
+# 管理员：删除菜品分类
+@app.route('/api/admin/categories/<int:category_id>', methods=['DELETE'])
+@admin_required
+def admin_delete_category(category_id):
+    category = Category.query.get_or_404(category_id)
+    
+    # 检查是否有菜品关联到该分类
+    dish_count = Dish.query.filter_by(category_id=category_id).count()
+    if dish_count > 0:
+        return jsonify({'message': f'无法删除分类，还有{dish_count}个菜品关联到该分类'}), 400
+    
+    db.session.delete(category)
+    db.session.commit()
+    
+    return jsonify({'message': '分类删除成功'}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
