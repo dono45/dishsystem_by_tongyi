@@ -222,16 +222,26 @@ export default {
         image_url: ''
       }
       
-      const modal = new bootstrap.Modal(document.getElementById('dishModal'))
-      modal.show()
+      // 修复：显式导入Bootstrap模块
+      import('bootstrap/dist/js/bootstrap.esm.js').then((bootstrap) => {
+        const modal = new bootstrap.Modal(document.getElementById('dishModal'))
+        modal.show()
+      }).catch((error) => {
+        console.error('Failed to load Bootstrap:', error)
+      })
     },
     
     editDish(dish) {
       this.editingDish = dish
       this.dishForm = { ...dish }
       
-      const modal = new bootstrap.Modal(document.getElementById('dishModal'))
-      modal.show()
+      // 修复：显式导入Bootstrap模块
+      import('bootstrap/dist/js/bootstrap.esm.js').then((bootstrap) => {
+        const modal = new bootstrap.Modal(document.getElementById('dishModal'))
+        modal.show()
+      }).catch((error) => {
+        console.error('Failed to load Bootstrap:', error)
+      })
     },
     
     async saveDish() {
@@ -254,10 +264,21 @@ export default {
           this.$root.showMessage('菜品添加成功')
         }
         
-        // 关闭模态框
-        const modalEl = document.getElementById('dishModal')
-        const modal = bootstrap.Modal.getInstance(modalEl)
-        modal.hide()
+        // 修复：显式导入Bootstrap模块
+        import('bootstrap/dist/js/bootstrap.esm.js').then((bootstrap) => {
+          // 关闭模态框
+          const modalEl = document.getElementById('dishModal')
+          const modal = bootstrap.Modal.getInstance(modalEl)
+          modal.hide()
+        }).catch((error) => {
+          console.error('Failed to load Bootstrap:', error)
+          // 如果无法加载Bootstrap，手动隐藏模态框
+          const modalEl = document.getElementById('dishModal')
+          if (modalEl) {
+            modalEl.style.display = 'none'
+            document.body.classList.remove('modal-open')
+          }
+        })
         
         // 重新加载菜品列表
         await this.loadDishes()
